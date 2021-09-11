@@ -1,0 +1,3 @@
+[submodule "reference/a-loam"]
+	path = reference/a-loam
+	url = https://github.com/HKUST-Aerial-Robotics/A-LOAM.git
