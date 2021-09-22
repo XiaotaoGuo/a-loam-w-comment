@@ -74,13 +74,13 @@ int main(int argc, char** argv)
     // 具体见下面数据处理过程
     ros::Publisher pubOdomGT = n.advertise<nav_msgs::Odometry> ("/odometry_gt", 5);
     nav_msgs::Odometry odomGT;
-    odomGT.header.frame_id = "/camera_init";
-    odomGT.child_frame_id = "/ground_truth";
+    odomGT.header.frame_id = "camera_init";
+    odomGT.child_frame_id = "ground_truth";
 
     // 初始化路径 publisher
     ros::Publisher pubPathGT = n.advertise<nav_msgs::Path> ("/path_gt", 5);
     nav_msgs::Path pathGT;
-    pathGT.header.frame_id = "/camera_init";
+    pathGT.header.frame_id = "camera_init";
 
     // 读入时间戳文件
     std::string timestamp_path = "sequences/" + sequence_number + "/times.txt";
@@ -184,7 +184,7 @@ int main(int argc, char** argv)
         sensor_msgs::PointCloud2 laser_cloud_msg;
         pcl::toROSMsg(laser_cloud, laser_cloud_msg);
         laser_cloud_msg.header.stamp = ros::Time().fromSec(timestamp);
-        laser_cloud_msg.header.frame_id = "/camera_init";
+        laser_cloud_msg.header.frame_id = "camera_init";
         pub_laser_cloud.publish(laser_cloud_msg);
 
         // 发布左右图像
