@@ -9,6 +9,9 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+/**
+ * 对边缘特征匹配位姿进行估计的 Functor
+ */
 struct LidarEdgeFactor
 {
 	LidarEdgeFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d last_point_a_,
@@ -18,20 +21,26 @@ struct LidarEdgeFactor
 	template <typename T>
 	bool operator()(const T *q, const T *t, T *residual) const
 	{
+		// 残差计算过程
 
+		// 获取当前点 p, 上一帧的角点的 a, b
 		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
 		Eigen::Matrix<T, 3, 1> lpa{T(last_point_a.x()), T(last_point_a.y()), T(last_point_a.z())};
 		Eigen::Matrix<T, 3, 1> lpb{T(last_point_b.x()), T(last_point_b.y()), T(last_point_b.z())};
 
+		// 获取当前帧相对于上一帧的旋转，并根据给点的畸变因子进行去畸变
 		//Eigen::Quaternion<T> q_last_curr{q[3], T(s) * q[0], T(s) * q[1], T(s) * q[2]};
 		Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};
 		Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
 		q_last_curr = q_identity.slerp(T(s), q_last_curr);
 		Eigen::Matrix<T, 3, 1> t_last_curr{T(s) * t[0], T(s) * t[1], T(s) * t[2]};
 
+		// 将当前点的位姿转换到上一帧结束的时间戳
 		Eigen::Matrix<T, 3, 1> lp;
 		lp = q_last_curr * cp + t_last_curr;
 
+		// 计算点 p 和 ab 的距离
+		// d = Sabp / ab = ap x bp / ab 
 		Eigen::Matrix<T, 3, 1> nu = (lp - lpa).cross(lp - lpb);
 		Eigen::Matrix<T, 3, 1> de = lpa - lpb;
 
@@ -45,15 +54,21 @@ struct LidarEdgeFactor
 	static ceres::CostFunction *Create(const Eigen::Vector3d curr_point_, const Eigen::Vector3d last_point_a_,
 									   const Eigen::Vector3d last_point_b_, const double s_)
 	{
+		// 添加新的观测值，构建残差快
 		return (new ceres::AutoDiffCostFunction<
 				LidarEdgeFactor, 3, 4, 3>(
 			new LidarEdgeFactor(curr_point_, last_point_a_, last_point_b_, s_)));
 	}
 
+	// 观测量为当前帧的点 p，与上一帧构成边缘的点 a 和点 b以及畸变因子 s
+	// 通过估计位姿 q 和 t，使得位姿变换后的 p 离线段 ab 距离最短
 	Eigen::Vector3d curr_point, last_point_a, last_point_b;
 	double s;
 };
 
+/**
+ * 对平面特征进行位姿匹配估计的 Functor
+ */
 struct LidarPlaneFactor
 {
 	LidarPlaneFactor(Eigen::Vector3d curr_point_, Eigen::Vector3d last_point_j_,
@@ -61,6 +76,7 @@ struct LidarPlaneFactor
 		: curr_point(curr_point_), last_point_j(last_point_j_), last_point_l(last_point_l_),
 		  last_point_m(last_point_m_), s(s_)
 	{
+		// 计算 ljm 平面的法向量并归一化
 		ljm_norm = (last_point_j - last_point_l).cross(last_point_j - last_point_m);
 		ljm_norm.normalize();
 	}
@@ -75,6 +91,7 @@ struct LidarPlaneFactor
 		//Eigen::Matrix<T, 3, 1> lpm{T(last_point_m.x()), T(last_point_m.y()), T(last_point_m.z())};
 		Eigen::Matrix<T, 3, 1> ljm{T(ljm_norm.x()), T(ljm_norm.y()), T(ljm_norm.z())};
 
+		// 对点进行去畸变
 		//Eigen::Quaternion<T> q_last_curr{q[3], T(s) * q[0], T(s) * q[1], T(s) * q[2]};
 		Eigen::Quaternion<T> q_last_curr{q[3], q[0], q[1], q[2]};
 		Eigen::Quaternion<T> q_identity{T(1), T(0), T(0), T(0)};
@@ -84,6 +101,8 @@ struct LidarPlaneFactor
 		Eigen::Matrix<T, 3, 1> lp;
 		lp = q_last_curr * cp + t_last_curr;
 
+		// 计算 p 到 ljm 平面的距离
+		// d = pj 点乘 ljm 平面的单位法向量
 		residual[0] = (lp - lpj).dot(ljm);
 
 		return true;
@@ -98,9 +117,10 @@ struct LidarPlaneFactor
 			new LidarPlaneFactor(curr_point_, last_point_j_, last_point_l_, last_point_m_, s_)));
 	}
 
+	// 观测量为当前帧的点 p，上一帧中构成平面特征的三个点 j, l, m，以及 jlm 平面形成的法向量
 	Eigen::Vector3d curr_point, last_point_j, last_point_l, last_point_m;
 	Eigen::Vector3d ljm_norm;
-	double s;
+	double s; // 畸变因子，0 表示起始点（对应上一帧结束时间点），1表示结束点（对应当前帧结束时间点）
 };
 
 struct LidarPlaneNormFactor
