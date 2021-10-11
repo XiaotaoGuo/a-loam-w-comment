@@ -121,11 +121,11 @@ Eigen::Map<Eigen::Vector3d> t_w_curr(parameters + 4);
 
 // wmap_T_odom * odom_T_curr = wmap_T_curr;
 // transformation between odom's world and map's world frame
-// 对前端里程计估计的位姿的误差估计（里程计估计的坐标系在后端建立的地图坐标系下的位姿）
+// 前端里程计估计的位姿
 Eigen::Quaterniond q_wmap_wodom(1, 0, 0, 0);
 Eigen::Vector3d t_wmap_wodom(0, 0, 0);
 
-// 后端建图对里程计生成的位姿估计的误差（用于对里程计位姿进行修正）
+// 前端里程计估计的位姿到后端里程计估计的位姿的转换，（用于对里程计位姿进行修正）
 Eigen::Quaterniond q_wodom_curr(1, 0, 0, 0);
 Eigen::Vector3d t_wodom_curr(0, 0, 0);
 
@@ -253,6 +253,7 @@ void process()
 			// 以最旧的角点数据的时间为参考，舍弃掉过早的数据
 			while (!odometryBuf.empty() && odometryBuf.front()->header.stamp.toSec() < cornerLastBuf.front()->header.stamp.toSec())
 				odometryBuf.pop();
+			// 如果筛除完后 Buffer 为空，说明没有一组时间匹配的数据，因此退出这一次处理等待新消息
 			if (odometryBuf.empty())
 			{
 				mBuf.unlock();
@@ -346,7 +347,7 @@ void process()
 				centerCubeK--;
 
 			// 当点云中心栅格坐标靠近栅格宽度负方向边缘时，需要将所有点云向宽度正方向移一个栅格，以腾出空间，保证栅格能够在宽度负方向容纳更多点云
-			// 这里用 3 个栅格长度（150m）作为缓冲区域
+			// 这里用 3 个栅格长度（150m）作为缓冲区域，即保证当前位姿周围 150 m 范围内的激光点都可以进行存放
 			while (centerCubeI < 3)
 			{
 				for (int j = 0; j < laserCloudHeight; j++)
@@ -565,7 +566,7 @@ void process()
 				}
 			}
 
-			// 更新局部地图点云（当前载体附近的点云）
+			// 提取局部地图点云（当前载体附近的点云）
 			laserCloudCornerFromMap->clear();
 			laserCloudSurfFromMap->clear();
 			for (int i = 0; i < laserCloudValidNum; i++)
@@ -722,12 +723,15 @@ void process()
 								//printf(" pts %f %f %f ", matA0(j, 0), matA0(j, 1), matA0(j, 2));
 							}
 							// find the norm of plane
-							// 计算平面法向量，原理 TODO
+							// 计算平面法向量，平面方程为 A'x + B'y + C'z = -1，代入 5 个点，利用最小二乘法解出参数即可得到法向量
 							Eigen::Vector3d norm = matA0.colPivHouseholderQr().solve(matB0);
 							double negative_OA_dot_norm = 1 / norm.norm();
 							norm.normalize();
 
 							// Here n(pa, pb, pc) is unit norm of plane
+							// 通过计算每个点到平面的距离来判断平面拟合的效果，距离公式为：d = |Ax + By + Cz + D|/sqrt(A^2+B^2+C^2)
+							// 归一化后平面公式为：Ax + By + Cz + D = 0, D = 1/sqrt(A'^2+B'^2+C'^2)
+							// 因此，计算公式为：d = Ax + By + Cz + negative_OA_dot_norm
 							bool planeValid = true;
 							for (int j = 0; j < 5; j++)
 							{

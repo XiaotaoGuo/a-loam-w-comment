@@ -11,6 +11,7 @@
 
 /**
  * 对边缘特征匹配位姿进行估计的 Functor
+ * 构建一个点对另外两个点组成的线的距离残差
  */
 struct LidarEdgeFactor
 {
@@ -68,6 +69,7 @@ struct LidarEdgeFactor
 
 /**
  * 对平面特征进行位姿匹配估计的 Functor
+ * 构建一个点对另外三个点组成的平面的距离残差
  */
 struct LidarPlaneFactor
 {
@@ -123,6 +125,10 @@ struct LidarPlaneFactor
 	double s; // 畸变因子，0 表示起始点（对应上一帧结束时间点），1表示结束点（对应当前帧结束时间点）
 };
 
+/**
+ * 对平面特征进行位姿匹配估计的 Functor
+ * 利用法向量构建残差
+ */
 struct LidarPlaneNormFactor
 {
 
@@ -133,12 +139,14 @@ struct LidarPlaneNormFactor
 	template <typename T>
 	bool operator()(const T *q, const T *t, T *residual) const
 	{
+		// 将待匹配点转换至世界坐标系下
 		Eigen::Quaternion<T> q_w_curr{q[3], q[0], q[1], q[2]};
 		Eigen::Matrix<T, 3, 1> t_w_curr{t[0], t[1], t[2]};
 		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};
 		Eigen::Matrix<T, 3, 1> point_w;
 		point_w = q_w_curr * cp + t_w_curr;
 
+		// 计算点到平面的距离，平面方程为 Ax + By + Cz + D = 0, negative_OA_dot_norm 表示常数项 D
 		Eigen::Matrix<T, 3, 1> norm(T(plane_unit_norm.x()), T(plane_unit_norm.y()), T(plane_unit_norm.z()));
 		residual[0] = norm.dot(point_w) + T(negative_OA_dot_norm);
 		return true;
@@ -157,7 +165,9 @@ struct LidarPlaneNormFactor
 	double negative_OA_dot_norm;
 };
 
-
+/**
+ * 构建两个点之间的距离残差
+ */
 struct LidarDistanceFactor
 {
 
@@ -167,6 +177,7 @@ struct LidarDistanceFactor
 	template <typename T>
 	bool operator()(const T *q, const T *t, T *residual) const
 	{
+		// 将两个点转换至同一坐标系下然后计算其距离
 		Eigen::Quaternion<T> q_w_curr{q[3], q[0], q[1], q[2]};
 		Eigen::Matrix<T, 3, 1> t_w_curr{t[0], t[1], t[2]};
 		Eigen::Matrix<T, 3, 1> cp{T(curr_point.x()), T(curr_point.y()), T(curr_point.z())};

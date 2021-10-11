@@ -614,7 +614,7 @@ int main(int argc, char **argv)
             kdtreeCornerLast->setInputCloud(laserCloudCornerLast);
             kdtreeSurfLast->setInputCloud(laserCloudSurfLast);
 
-            // 按给定频率发布当前的点云地图
+            // 按给定频率发布当前的特征点点云以及全分辨率点云
             if (frameCount % skipFrameNum == 0)
             {
                 frameCount = 0;
