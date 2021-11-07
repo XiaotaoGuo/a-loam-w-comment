@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber subLaserCloudFullRes = nh.subscribe<sensor_msgs::PointCloud2>("/velodyne_cloud_2", 100, laserCloudFullResHandler);
 
-    // 初始化 publishers，分别发布上一帧的角点以及平面点，已经匹配后的点云（TODO）
+    // 初始化 publishers，分别发布上一帧的角点以及平面点，还有转发全分辨率的原始点云（按需转换至点云末尾时刻）
     ros::Publisher pubLaserCloudCornerLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_corner_last", 100);
 
     ros::Publisher pubLaserCloudSurfLast = nh.advertise<sensor_msgs::PointCloud2>("/laser_cloud_surf_last", 100);
